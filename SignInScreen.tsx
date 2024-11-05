@@ -1,50 +1,129 @@
-import React from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  Image,
-} from "react-native";
-// import yourImage from "../../assets/images/logoshoes.jpg";
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
+import { apiService } from '../config/apiService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 
 const SignInScreen = ({ navigation }: { navigation: any }) => {
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState({
+    name: '',
+    password: ''
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      clearLoginInfo();
+    }, [])
+  );
+
+  const clearLoginInfo = async () => {
+    setName('');
+    setPassword('');
+    try {
+      await AsyncStorage.removeItem('loginInfo');
+    } catch (error) {
+      console.error('Error clearing login info:', error);
+    }
+  };
+
+  const handleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      
+      if (!name || !password) {
+        Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thông tin');
+        return;
+      }
+
+      const response = await apiService.login({
+        name: name,
+        password: password
+      });
+
+      if (response.data.status) {
+        const userData = {
+          id: response.data.user.id,
+          email: response.data.user.email,
+          token: response.data.token,
+          user: response.data.user
+        };
+
+        await AsyncStorage.setItem('userToken', response.data.token);
+        await AsyncStorage.setItem('loginInfo', JSON.stringify(userData));
+        
+        Alert.alert('Thành công', 'Đăng nhập thành công');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+      } else {
+        Alert.alert('Lỗi', response.data.message || 'Email hoặc mật khẩu không chính xác');
+      }
+
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Lỗi', 'Không thể kết nối đến server');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <Image source={require('../../assets/images/logoshoes.jpg')} style={styles.image} resizeMode="contain" />
-      <Text style={styles.subHeader}>
-        Happy to see you again. Please SignIn Here
-      </Text>
+      <Image source={require('../../assets/images/logoshoes.png')} style={styles.image} resizeMode="contain" />
+
+      <Text style={styles.subHeader}>Đăng nhập</Text>
 
       <View style={styles.formContainer}>
+        <View>
+          <TextInput
+            style={[styles.input, errors.name ? styles.inputError : null]}
+            placeholder="Tên đăng nhập"
+            placeholderTextColor="#888"
+            autoCapitalize="none"
+            value={name}
+            onChangeText={setName}
+          />
+          {errors.name ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{errors.name}</Text>
+            </View>
+          ) : null}
+        </View>
+
         <TextInput
           style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#888"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
+          placeholder="Mật khẩu"
           placeholderTextColor="#888"
           secureTextEntry
+          value={password}
+          onChangeText={setPassword}
         />
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.navigate("Home")}
+        <TouchableOpacity 
+          style={[styles.button, errors.name ? styles.buttonDisabled : null]}
+          onPress={handleSignIn}
+          disabled={isLoading || !!errors.name}
         >
-          <Text style={styles.buttonText}>SignIn</Text>
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Đăng Nhập</Text>
+          )}
         </TouchableOpacity>
       </View>
       <View style={styles.footer}>
-        <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
-          <Text style={styles.footerText}> Đăng ký</Text>
-          <Text style={styles.footerText}>Quên mật khẩu </Text>
+        <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+          <Text style={styles.footerText}>Đăng ký</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Forget')}>
+          <Text style={styles.footerText}>Quên mật khẩu</Text>
         </TouchableOpacity>
       </View>
+      {isLoading && <ActivityIndicator size="large" color="#000" />}
     </View>
   );
 };
@@ -52,66 +131,80 @@ const SignInScreen = ({ navigation }: { navigation: any }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "white",
-    justifyContent: "center",
+    backgroundColor: '#fff',
+    justifyContent: 'center',
     padding: 16,
   },
   image: {
-    width: 290, // Adjust the size as needed
-    height: 150, // Adjust the size as needed
-    alignSelf: "center",
-    marginBottom: 24,
+    width: 300,
+    height: 300,
+    alignSelf: 'center',
   },
   subHeader: {
-    fontSize: 20,
-    color: "#383838",
-    marginBottom: 24,
-    textAlign: "center",
-    fontStyle: "italic",
+    fontSize: 25,
+    color: '#000',
+    marginBottom: 30,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   formContainer: {
     marginBottom: 24,
   },
   input: {
-    alignSelf: "center",
-    width: 300,
     height: 50,
-    borderColor: "#fff",
+    borderColor: '#000',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 16,
     marginBottom: 15,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
+    width: 250,
+    alignSelf: 'center',
+    color: '#000',
   },
   button: {
-    backgroundColor: "#000",
+    backgroundColor: '#000',
     borderRadius: 8,
     paddingVertical: 13,
     paddingHorizontal: 15,
-    alignItems: "center",
+    alignItems: 'center',
     width: 200,
     marginTop: 30,
-    alignSelf: "center",
+    alignSelf: 'center',
   },
   buttonText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#fff",
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   footer: {
     marginTop: 24,
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-evenly', // Căn giữa các nút
+    width: '100%',
   },
   footerText: {
-    alignItems: "center",
-    color: "#181717",
+    color: '#000',
     fontSize: 16,
     marginVertical: 8,
   },
-  footerr: {
-    alignItems: "center",
-    color: "#800606",
+  inputError: {
+    borderColor: 'red',
   },
+  errorContainer: {
+    alignItems: 'center',
+    width: '100%',
+    marginTop: -10,
+    marginBottom: 10,
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 12,
+  },
+  buttonDisabled: {
+    backgroundColor: '#cccccc',
+    opacity: 0.7,
+  }
 });
 
 export default SignInScreen;

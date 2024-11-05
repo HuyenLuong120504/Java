@@ -1,330 +1,268 @@
-import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-} from "react-native";
-import Icon from "react-native-vector-icons/FontAwesome"; // Cần cài đặt thư viện này
-import { useNavigation } from "@react-navigation/native"; // Import useNavigation
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Icon from 'react-native-vector-icons/Ionicons';
 
-const ProductDetails = () => {
-  const navigation = useNavigation(); // Khởi tạo useNavigation
-  const [quantity, setQuantity] = useState(1); // Quản lý số lượng sản phẩm
-  const [selectedSize, setSelectedSize] = useState(38); // Quản lý size (đổi thành số)
-  const [selectedColor, setSelectedColor] = useState("white"); // Quản lý màu
+// Define a type for cart items
+type CartItem = {
+  id: number;
+  title: string;
+  price: number;
+  image: string;
+  quantity: number;
+  color: string;
+};
 
-  const increaseQuantity = () => {
-    setQuantity(quantity + 1);
-  };
+const DetailsScreen = ({ route, navigation }: { route: any, navigation: any }) => {
+  const { product } = route.params; // Nhận toàn bộ sản phẩm từ params
+  const [quantity, setQuantity] = useState(1);
+  const [cart, setCart] = useState({ items: [], total: 0 });
+  const [cartCount, setCartCount] = useState(0);
+  const [selectedColor, setSelectedColor] = useState('Đen'); // Default selected color
 
-  const decreaseQuantity = () => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1);
+  // Add color options
+  const colorOptions = ['Đen', 'Trắng']; // Only black and white
+
+  useEffect(() => {
+    loadCart();
+  }, []);
+
+  const loadCart = async () => {
+    try {
+      const savedCart = await AsyncStorage.getItem('cart');
+      if (savedCart) {
+        const cartData = JSON.parse(savedCart);
+        setCart(cartData);
+        const totalItems = cartData.items.reduce(
+          (total: number, item: CartItem) => total + item.quantity, 
+          0
+        );
+        setCartCount(totalItems);
+      }
+    } catch (error) {
+      console.error('Error loading cart:', error);
     }
   };
 
-  // Tạo mảng kích thước từ 36 đến 44
-  const sizes = Array.from({ length: 8 }, (_, index) => 36 + index); // [36, 37, 38, 39, 40, 41, 42, 43, 44]
-  const colors = ["white", "black", "red"]; // Màu sắc sản phẩm
+  const addToCart = async () => {
+    try {
+      const savedCart = await AsyncStorage.getItem('cart');
+      let currentCart = savedCart ? JSON.parse(savedCart) : { items: [], total: 0 };
+
+      const newCartItem = {
+        id: product.id,
+        title: product.name,
+        price: product.price,
+        image: product.image,
+        quantity: quantity,
+        color: selectedColor, // Ensure selectedColor is included
+      };
+
+      // Check for existing item by both ID and color
+      const existingItemIndex = currentCart.items.findIndex((item: CartItem) => 
+        item.id === newCartItem.id && item.color === newCartItem.color
+      );
+
+      if (existingItemIndex >= 0) {
+        // If the item exists, update the quantity
+        currentCart.items[existingItemIndex].quantity += quantity;
+      } else {
+        // If the item does not exist, add it to the cart
+        currentCart.items.push(newCartItem);
+      }
+
+      currentCart.total += parseFloat(product.price) * quantity;
+
+      await AsyncStorage.setItem('cart', JSON.stringify(currentCart));
+      setCart(currentCart);
+
+      const newTotalItems = currentCart.items.reduce(
+        (total: number, item: CartItem) => total + item.quantity,
+        0
+      );
+      setCartCount(newTotalItems);
+
+      alert(`Đã thêm ${product.name} vào giỏ hàng!`);
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+    }
+  };
+
+  console.log('Product:', product); // Kiểm tra giá trị của product
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Top Navigation Bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Icon name="arrow-left" size={20} color="#000" /> {/* Nút quay về */}
-        </TouchableOpacity>
-        
-        <View style={styles.iconsContainer}>
-          <TouchableOpacity style={styles.iconButton}>
-            <Icon name="search" size={20} color="#000" />
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
+            <Icon name="arrow-back" size={24} color="black" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Icon name="user" size={20} color="#000" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Icon name="shopping-cart" size={20} color="#000" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Icon name="bars" size={20} color="#000" />
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('Cart', { cart })} 
+            style={styles.cartButton}
+          >
+            <Icon name="cart-outline" size={24} color="black" />
+            {cartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{cartCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Product Details */}
-      <View style={styles.productDetails}>
-        <Text style={styles.productName}>Nike Air Force 1 LE</Text>
-        <Text style={styles.productType}>Men Shoes</Text>
-        <Text style={styles.productPrice}>2,419,000 Đ</Text>
+        <Image source={{ uri: product.image }} style={styles.productImage} />
 
-        {/* Highly Rated Badge */}
-        <View style={styles.badge}>
-          <Icon name="star" size={12} color="#000" />
-          <Text style={styles.badgeText}>Highly Rated</Text>
-        </View>
+        <View style={styles.productDetails}>
+          <Text style={styles.productTitle}>{product.name}</Text>
+          <Text style={styles.productPrice}>{product.price.toLocaleString()} VND</Text>
+          <Text style={styles.productDescription}>{product.description}</Text>
 
-        {/* Product Image */}
-        <Image
-          source={{
-            uri: "https://static.nike.com/a/images/t_PDP_1728_v1/f_auto,q_auto:eco/b7d9211c-26e7-431a-ac24-b0540fb3c00f/AIR+FORCE+1+%2707.png",
-          }}
-          style={styles.productImage}
-        />
-
-        {/* Product Description */}
-        <Text style={styles.description}>
-          The Nike Air Force 1 LE brings a classic look to your feet. It
-          features durable leather, a foam midsole for comfort, and timeless
-          Nike branding. Perfect for all-day wear!
-        </Text>
-
-        {/* Product Rating */}
-        <View style={styles.ratingContainer}>
-          <Text style={styles.ratingLabel}>Đánh giá:</Text>
-          <View style={styles.starsContainer}>
-            <Icon name="star" size={18} color="#FFD700" />
-            <Icon name="star" size={18} color="#FFD700" />
-            <Icon name="star" size={18} color="#FFD700" />
-            <Icon name="star" size={18} color="#FFD700" />
-            <Icon name="star-half" size={18} color="#FFD700" />
+          <View style={styles.quantityContainer}>
+            <TouchableOpacity onPress={() => setQuantity(Math.max(1, quantity - 1))}>
+              <Icon name="remove-circle-outline" size={24} color="#4A90E2" />
+            </TouchableOpacity>
+            <Text style={styles.quantityText}>{quantity}</Text>
+            <TouchableOpacity onPress={() => setQuantity(quantity + 1)}>
+              <Icon name="add-circle-outline" size={24} color="#4A90E2" />
+            </TouchableOpacity>
           </View>
-          <Text style={styles.ratingText}>4.5/5 (120 đánh giá)</Text>
-        </View>
 
-        {/* Size Selector */}
-        <Text style={styles.sectionLabel}>Chọn size:</Text>
-        <View style={styles.sizeSelectorContainer}>
-          <View style={styles.sizeSelector}>
-            {sizes.map((size) => (
-              <TouchableOpacity
-                key={size}
-                style={[
-                  styles.sizeButton,
-                  selectedSize === size && styles.selectedSizeButton,
-                ]}
-                onPress={() => setSelectedSize(size)}
+          <View style={styles.colorOptionsContainer}>
+            {colorOptions.map((color, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={[styles.colorOption, { borderColor: selectedColor === color ? '#4A90E2' : '#ddd' }]} 
+                onPress={() => setSelectedColor(color)}
               >
-                <Text
-                  style={[
-                    styles.sizeButtonText,
-                    selectedSize === size && styles.selectedSizeButtonText,
-                  ]}
-                >
-                  {size} {/* Hiển thị size như một số */}
-                </Text>
+                <View style={[styles.colorCircle, { backgroundColor: color === 'Đen' ? 'black' : 'white' }]} />
+                <Text style={{ color: selectedColor === color ? '#4A90E2' : 'black' }}>{color}</Text> {/* Display color name */}
               </TouchableOpacity>
             ))}
           </View>
-        </View>
 
-        {/* Color Selector */}
-        <Text style={styles.sectionLabel}>Chọn màu sắc:</Text>
-        <View style={styles.colorSelector}>
-          {colors.map((color) => (
-            <TouchableOpacity
-              key={color}
-              style={[
-                styles.colorButton,
-                { backgroundColor: color },
-                selectedColor === color && styles.selectedColorButton,
-              ]}
-              onPress={() => setSelectedColor(color)}
-            />
-          ))}
-        </View>
+          <Text style={styles.selectedColorText}>Màu đã chọn: {selectedColor}</Text> {/* Display selected color */}
 
-        {/* Quantity Selector */}
-        <View style={styles.quantityContainer}>
-          <TouchableOpacity
-            onPress={decreaseQuantity}
-            style={styles.quantityButton}
-          >
-            <Text style={styles.quantityButtonText}>-</Text>
-          </TouchableOpacity>
-          <Text style={styles.quantityText}>{quantity}</Text>
-          <TouchableOpacity
-            onPress={increaseQuantity}
-            style={styles.quantityButton}
-          >
-            <Text style={styles.quantityButtonText}>+</Text>
+          <TouchableOpacity style={styles.addToCartButton} onPress={addToCart}>
+            <Text style={styles.addToCartText}>Thêm vào giỏ hàng</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Add to Cart Button */}
-        <TouchableOpacity style={styles.addToCartButton}>
-          <Text style={styles.addToCartText}>Thêm vào giỏ hàng</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
-export default ProductDetails;
-
+// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFF",
-    paddingHorizontal: 15,
+    backgroundColor: '#F0F0F0',
+  },
+  scrollContent: {
+    paddingBottom: 80,
   },
   topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 15,
-  },
-  backButton: {
-    marginRight: 15, // Cách giữa nút quay về và logo
-  },
-  logo: {
-    width: 50,
-    height: 25,
-    resizeMode: "contain",
-  },
-  iconsContainer: {
-    flexDirection: "row",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: 'white',
   },
   iconButton: {
-    marginLeft: 15,
-    padding: 10, // Thêm padding để tạo không gian cho nút
-    borderRadius: 5, // Thêm góc bo cho nút
-    backgroundColor: "#f0f0f0", // Màu nền cho nút
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  productImage: {
+    width: '100%',
+    height: 300,
+    resizeMode: 'cover',
   },
   productDetails: {
-    alignItems: "center",
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginTop: -20,
+    padding: 20,
   },
-  productName: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 5,
-  },
-  productType: {
-    fontSize: 16,
-    color: "#888",
+  productTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
     marginBottom: 10,
   },
   productPrice: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#4A90E2',
+  },
+  productDescription: {
+    fontSize: 16,
+    color: '#555',
+    marginVertical: 10,
+  },
+  addToCartButton: {
+    backgroundColor: '#000000',
+    paddingVertical: 15,
+    borderRadius: 30,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  addToCartText: {
+    color: 'white',
     fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 15,
-  },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f7f7f7",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
-    marginBottom: 20,
-  },
-  badgeText: {
-    marginLeft: 5,
-    fontSize: 12,
-    color: "#000",
-  },
-  productImage: {
-    width: "100%",
-    height: 300,
-    resizeMode: "contain",
-  },
-  description: {
-    fontSize: 16,
-    color: "#555",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  starsContainer: {
-    flexDirection: "row",
-    marginLeft: 10,
-  },
-  ratingLabel: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  ratingText: {
-    marginLeft: 10,
-    fontSize: 16,
-    color: "#888",
-  },
-  sectionLabel: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  sizeSelectorContainer: {
-    marginBottom: 20, // Thêm khoảng cách giữa phần chọn kích thước và các phần khác
-  },
-  sizeSelector: {
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  sizeButton: {
-    padding: 10,
-    margin: 5,
-    borderRadius: 5,
-    backgroundColor: "#EEE",
-  },
-  selectedSizeButton: {
-    backgroundColor: "#000",
-  },
-  sizeButtonText: {
-    color: "#000",
-    fontWeight: "bold",
-  },
-  selectedSizeButtonText: {
-    color: "#FFF",
-  },
-  colorSelector: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  colorButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    marginHorizontal: 10,
-  },
-  selectedColorButton: {
-    borderWidth: 2,
-    borderColor: "#000",
+    fontWeight: 'bold',
   },
   quantityContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  quantityButton: {
-    backgroundColor: "#EEE",
-    padding: 10,
-    borderRadius: 5,
-    marginHorizontal: 10,
-  },
-  quantityButtonText: {
-    fontSize: 18,
-    fontWeight: "bold",
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 10,
   },
   quantityText: {
     fontSize: 18,
-    fontWeight: "bold",
+    marginHorizontal: 10,
   },
-  addToCartButton: {
-    backgroundColor: "#000",
-    paddingVertical: 15,
-    paddingHorizontal: 100,
-    borderRadius: 30,
+  cartButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    position: 'relative',
   },
-  addToCartText: {
-    color: "#fff",
+  cartBadge: {
+    position: 'absolute',
+    right: -6,
+    top: -6,
+    backgroundColor: 'red',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cartBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  colorOptionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 10,
+  },
+  colorOption: {
+    padding: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  colorCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
+  selectedColorText: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: 'bold',
+    marginTop: 10,
   },
 });
+
+export default DetailsScreen;
